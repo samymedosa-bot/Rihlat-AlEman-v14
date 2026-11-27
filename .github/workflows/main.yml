@@ -98,7 +98,6 @@ jobs:
           import android.app.*
           import android.content.*
           import android.os.Build
-          import androidx.core.app.NotificationCompat
           import java.util.Calendar
           class PrayerAlarmReceiver : BroadcastReceiver() {
           override fun onReceive(context: Context, intent: Intent) {
@@ -107,8 +106,10 @@ jobs:
           if(Build.VERSION.SDK_INT>=26) manager.createNotificationChannel(NotificationChannel(channel,"تنبيهات الصلاة",NotificationManager.IMPORTANCE_HIGH))
           val launch=context.packageManager.getLaunchIntentForPackage(context.packageName)
           val open=PendingIntent.getActivity(context,0,launch,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-          val n=NotificationCompat.Builder(context,channel).setSmallIcon(context.applicationInfo.icon).setContentTitle("حان الآن موعد صلاة $prayer").setContentText("حيّ على الصلاة • رحلة الإيمان").setPriority(NotificationCompat.PRIORITY_HIGH).setAutoCancel(true).setContentIntent(open).build()
-          manager.notify(id,n)
+          val builder=if(Build.VERSION.SDK_INT>=26) Notification.Builder(context,channel) else Notification.Builder(context)
+          builder.setSmallIcon(context.applicationInfo.icon).setContentTitle("حان الآن موعد صلاة $prayer").setContentText("حيّ على الصلاة • رحلة الإيمان").setAutoCancel(true).setContentIntent(open)
+          if(Build.VERSION.SDK_INT<26) builder.setPriority(Notification.PRIORITY_HIGH)
+          manager.notify(id,builder.build())
           val h=intent.getIntExtra("hour",0); val m=intent.getIntExtra("minute",0)
           val next=Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR,1); set(Calendar.HOUR_OF_DAY,h); set(Calendar.MINUTE,m); set(Calendar.SECOND,0); set(Calendar.MILLISECOND,0) }
           val again=Intent(context,PrayerAlarmReceiver::class.java).putExtra("prayer",prayer).putExtra("id",id).putExtra("hour",h).putExtra("minute",m)
@@ -144,6 +145,7 @@ jobs:
           anchor="prayerTimes = {fajr:t.Fajr.split(' ')[0], sunrise:t.Sunrise.split(' ')[0], dhuhr:t.Dhuhr.split(' ')[0], asr:t.Asr.split(' ')[0], maghrib:t.Maghrib.split(' ')[0], isha:t.Isha.split(' ')[0]};"
           if anchor not in h: raise SystemExit('Prayer times anchor not found')
           h=h.replace(anchor,anchor+"\n      try { if(window.PrayerNative) PrayerNative.schedule(JSON.stringify(prayerTimes), !!settings.notifications); } catch(e) {}")
+          h=h.replace("localStorage.setItem('rihlati_settings', JSON.stringify(settings));", "localStorage.setItem('rihlati_settings', JSON.stringify(settings));\\n  try { if(window.PrayerNative && prayerTimes && prayerTimes.fajr) PrayerNative.schedule(JSON.stringify(prayerTimes), !!settings.notifications); } catch(e) {}")
           html.write_text(h)
           print('Applied native prayer alarms and version 14.1')
           PY
