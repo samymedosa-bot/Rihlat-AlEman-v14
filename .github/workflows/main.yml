@@ -86,8 +86,8 @@ jobs:
           import re,sys
           root=Path(sys.argv[1]); app=root/'app'
           gradle=app/'build.gradle'; g=gradle.read_text()
-          g=re.sub(r'versionCode\s+\d+', 'versionCode 142', g)
-          g=re.sub(r'versionName\s+["\'][^"\']+["\']', 'versionName "14.2"', g)
+          g=re.sub(r'versionCode\s+\d+', 'versionCode 143', g)
+          g=re.sub(r'versionName\s+["\'][^"\']+["\']', 'versionName "14.3"', g)
           gradle.write_text(g)
           manifest=app/'src/main/AndroidManifest.xml'; m=manifest.read_text()
           if 'SCHEDULE_EXACT_ALARM' not in m: m=m.replace('<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />','<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />')
@@ -147,7 +147,12 @@ jobs:
           h=h.replace(anchor,anchor+"\n      try { if(window.PrayerNative) PrayerNative.schedule(JSON.stringify(prayerTimes), !!settings.notifications); } catch(e) {}")
           h=h.replace("localStorage.setItem('rihlati_settings', JSON.stringify(settings));", "localStorage.setItem('rihlati_settings', JSON.stringify(settings));\n  try { if(window.PrayerNative && prayerTimes && prayerTimes.fajr) PrayerNative.schedule(JSON.stringify(prayerTimes), !!settings.notifications); } catch(e) {}")
           html.write_text(h)
-          print('Applied native prayer alarms and version 14.2')
+          sw=next((app/'src/main/assets').rglob('sw.js'),None)
+          if sw is None: raise SystemExit('Service worker not found')
+          worker=sw.read_text()
+          worker=worker.replace("rihla-app-v14-0", "rihla-app-v14-3")
+          sw.write_text(worker)
+          print('Applied native prayer alarms, refreshed service-worker cache, and version 14.3')
           PY
 
       - name: Set up JDK 17
@@ -189,6 +194,6 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Rihlat-AlEman-v14.2-APK
+          name: Rihlat-AlEman-v14.3-APK
           path: apk-output/*.apk
           if-no-files-found: error
