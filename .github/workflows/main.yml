@@ -196,6 +196,95 @@ jobs:
           print('Applied native prayer alarms, refreshed service-worker cache, and version 14.3')
           PY
 
+
+      - name: Fix pre-prayer reminders and bundle offline adhan audio
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$PROJECT_DIR" <<'PY'
+          from pathlib import Path
+          import re, sys
+          app=Path(sys.argv[1])/'app'
+          src=app/'src/main/java/com/samymedo/rihla'
+          receiver=src/'PrayerAlarmReceiver.kt'
+          r=receiver.read_text()
+          r=r.replace('val channel="prayer_times"; val manager=', 'val isPre=intent.getBooleanExtra("isPre",false); val preType=intent.getStringExtra("preType") ?: "adhan"\n          val title=if(isPre) "تذكير قبل صلاة $prayer" else "حان الآن موعد صلاة $prayer"\n          val body=if(!isPre) "حيّ على الصلاة • رحلة الإيمان" else when(preType) { "takbeer" -> "الله أكبر، الله أكبر — اقترب موعد الصلاة"; "gentle" -> "اقترب موعد الصلاة، خذ استراحة واستعد لها 🌿"; "silent" -> "تذكير صامت: اقترب موعد الصلاة"; else -> "استعد للصلاة — اقترب موعد الأذان 🕌" }\n          val channel="prayer_times"; val manager=')
+          r=r.replace('.setContentTitle("حان الآن موعد صلاة $prayer").setContentText("حيّ على الصلاة • رحلة الإيمان")', '.setContentTitle(title).setContentText(body)')
+          r=r.replace('.putExtra("minute",m)\n', '.putExtra("minute",m).putExtra("isPre",isPre).putExtra("preType",preType)\n')
+          receiver.write_text(r)
+          main=src/'MainActivity.kt'; m=main.read_text()
+          if 'fun schedulePrePrayer(' not in m:
+              pos=m.rfind('}')
+              method=r"""
+          @JavascriptInterface fun schedulePrePrayer(timesJson:String, enabled:Boolean, leadMinutes:Int, prayersCsv:String, preType:String) {
+          val am=context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+          val names=listOf("الفجر","الظهر","العصر","المغرب","العشاء")
+          val keys=listOf("fajr","dhuhr","asr","maghrib","isha")
+          val ids=listOf(2201,2202,2203,2204,2205)
+          for(id in ids) { val old=PendingIntent.getBroadcast(context,id,Intent(context,PrayerAlarmReceiver::class.java),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE); am.cancel(old); old.cancel() }
+          if(!enabled) return
+          try {
+            val data=JSONObject(timesJson); val selected=prayersCsv.split(",").toSet()
+            for(i in keys.indices) {
+              if(!selected.contains(keys[i])) continue
+              val raw=data.optString(keys[i],""); if(!raw.matches(Regex("\\d{1,2}:\\d{2}"))) continue
+              val p=raw.split(":"); val h=p[0].toInt(); val minute=p[1].toInt()
+              val cal=Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY,h); set(Calendar.MINUTE,minute); set(Calendar.SECOND,0); set(Calendar.MILLISECOND,0); add(Calendar.MINUTE,-leadMinutes); if(timeInMillis<=System.currentTimeMillis()) add(Calendar.DAY_OF_YEAR,1) }
+              val intent=Intent(context,PrayerAlarmReceiver::class.java).putExtra("prayer",names[i]).putExtra("id",ids[i]).putExtra("hour",cal.get(Calendar.HOUR_OF_DAY)).putExtra("minute",cal.get(Calendar.MINUTE)).putExtra("isPre",true).putExtra("preType",preType)
+              val pi=PendingIntent.getBroadcast(context,ids[i],intent,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+              if(Build.VERSION.SDK_INT>=23) { if(Build.VERSION.SDK_INT>=31 && !am.canScheduleExactAlarms()) am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,cal.timeInMillis,pi) else am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,cal.timeInMillis,pi) } else am.setExact(AlarmManager.RTC_WAKEUP,cal.timeInMillis,pi)
+            }
+          } catch(_:Exception) {}
+          }
+          """
+              m=m[:pos]+method+m[pos:]
+              main.write_text(m)
+          html=next((app/'src/main/assets').rglob('index.html')); h=html.read_text()
+          pattern=r'async function togglePrePrayerReminder\(\)\s*\{.*?\n\}'
+          replacement=r'''async function togglePrePrayerReminder(){
+            const toggle=document.getElementById('prePrayerToggle'); if(!toggle)return;
+            if(toggle.checked){
+              let granted=true;
+              if(window.PrayerNative && PrayerNative.requestPermission){ PrayerNative.requestPermission(); granted=true; }
+              else granted=await ensurePrayerNotificationPermission();
+              if(!granted){toggle.checked=false;settings.prePrayerReminder=false;return;}
+              settings.prePrayerReminder=true;settings.notifications=true;
+              const mainToggle=document.getElementById('notificationsToggle');if(mainToggle)mainToggle.checked=true;
+            }else settings.prePrayerReminder=false;
+            saveSettings();
+            syncNativePrePrayer();
+          }
+          function syncNativePrePrayer(){
+            try{
+              if(window.PrayerNative && prayerTimes && prayerTimes.fajr){
+                PrayerNative.schedulePrePrayer(JSON.stringify(prayerTimes),!!settings.prePrayerReminder,Number(settings.prePrayerMinutes||10),(settings.prePrayerPrayers||[]).join(','),settings.prePrayerType||'adhan');
+              }
+            }catch(e){console.warn('Native pre-prayer schedule failed',e);}
+          }'''
+          h,n=re.subn(pattern,lambda _:replacement,h,count=1,flags=re.S)
+          if not n: raise SystemExit('togglePrePrayerReminder function not found')
+          # Re-sync after fresh prayer times and after reminder settings change.
+          h=h.replace('try { if(window.PrayerNative) PrayerNative.schedule(JSON.stringify(prayerTimes), !!settings.notifications); } catch(e) {}',
+                      'try { if(window.PrayerNative) PrayerNative.schedule(JSON.stringify(prayerTimes), !!settings.notifications); } catch(e) {}\n      try { syncNativePrePrayer(); } catch(e) {}')
+          h=h.replace('  saveSettings();\n}\nfunction initPrayerAlertSettings()', '  saveSettings();\n  try { syncNativePrePrayer(); } catch(e) {}\n}\nfunction initPrayerAlertSettings()')
+          # Use bundled asset files as the download source, so WebView CORS does not block saving.
+          h=h.replace("fetch(sound.url,{mode:'cors',cache:'no-store'})", "fetch('./adhan/'+sound.id+'.mp3',{cache:'force-cache'})")
+          h=h.replace("const url=stored?URL.createObjectURL(stored):sound.url;", "const url=stored?URL.createObjectURL(stored):('./adhan/'+sound.id+'.mp3');")
+          h=h.replace("return stored?URL.createObjectURL(stored):sound.url;", "return stored?URL.createObjectURL(stored):('./adhan/'+sound.id+'.mp3');")
+          html.write_text(h)
+          print('Applied native pre-prayer scheduling and offline audio asset references')
+          PY
+          ASSET_DIR=$(find "$PROJECT_DIR/app/src/main/assets" -type d -name 'rihla_v*' -print -quit)
+          test -n "$ASSET_DIR"
+          mkdir -p "$ASSET_DIR/adhan"
+          curl -fLsS --retry 3 "https://cdn.aladhan.com/audio/adhans/a9.mp3" -o "$ASSET_DIR/adhan/afasy.mp3"
+          curl -fLsS --retry 3 "https://cdn.aladhan.com/audio/adhans/a4.mp3" -o "$ASSET_DIR/adhan/afasy_dubai.mp3"
+          curl -fLsS --retry 3 "https://cdn.aladhan.com/audio/adhans/a7.mp3" -o "$ASSET_DIR/adhan/afasy_alt.mp3"
+          curl -fLsS --retry 3 "https://cdn.aladhan.com/audio/adhans/a1.mp3" -o "$ASSET_DIR/adhan/nafees.mp3"
+          curl -fLsS --retry 3 "https://cdn.aladhan.com/audio/adhans/a11-mansour-al-zahrani.mp3" -o "$ASSET_DIR/adhan/mansour.mp3"
+          find "$ASSET_DIR/adhan" -type f -size +10k | grep -q .
+          echo "Bundled offline adhan audio assets"
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
