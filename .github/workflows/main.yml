@@ -101,21 +101,21 @@ jobs:
           import androidx.core.app.NotificationCompat
           import java.util.Calendar
           class PrayerAlarmReceiver : BroadcastReceiver() {
- override fun onReceive(context: Context, intent: Intent) {
-  val prayer=intent.getStringExtra("prayer") ?: "الصلاة"; val id=intent.getIntExtra("id",100)
-  val channel="prayer_times"; val manager=context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-  if(Build.VERSION.SDK_INT>=26) manager.createNotificationChannel(NotificationChannel(channel,"تنبيهات الصلاة",NotificationManager.IMPORTANCE_HIGH))
-  val launch=context.packageManager.getLaunchIntentForPackage(context.packageName)
-  val open=PendingIntent.getActivity(context,0,launch,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-  val n=NotificationCompat.Builder(context,channel).setSmallIcon(context.applicationInfo.icon).setContentTitle("حان الآن موعد صلاة $prayer").setContentText("حيّ على الصلاة • رحلة الإيمان").setPriority(NotificationCompat.PRIORITY_HIGH).setAutoCancel(true).setContentIntent(open).build()
-  manager.notify(id,n)
-  val h=intent.getIntExtra("hour",0); val m=intent.getIntExtra("minute",0)
-  val next=Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR,1); set(Calendar.HOUR_OF_DAY,h); set(Calendar.MINUTE,m); set(Calendar.SECOND,0); set(Calendar.MILLISECOND,0) }
-  val again=Intent(context,PrayerAlarmReceiver::class.java).putExtra("prayer",prayer).putExtra("id",id).putExtra("hour",h).putExtra("minute",m)
-  val pi=PendingIntent.getBroadcast(context,id,again,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-  val am=context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-  if(Build.VERSION.SDK_INT>=23) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,next.timeInMillis,pi) else am.setExact(AlarmManager.RTC_WAKEUP,next.timeInMillis,pi)
- }
+          override fun onReceive(context: Context, intent: Intent) {
+          val prayer=intent.getStringExtra("prayer") ?: "الصلاة"; val id=intent.getIntExtra("id",100)
+          val channel="prayer_times"; val manager=context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+          if(Build.VERSION.SDK_INT>=26) manager.createNotificationChannel(NotificationChannel(channel,"تنبيهات الصلاة",NotificationManager.IMPORTANCE_HIGH))
+          val launch=context.packageManager.getLaunchIntentForPackage(context.packageName)
+          val open=PendingIntent.getActivity(context,0,launch,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+          val n=NotificationCompat.Builder(context,channel).setSmallIcon(context.applicationInfo.icon).setContentTitle("حان الآن موعد صلاة $prayer").setContentText("حيّ على الصلاة • رحلة الإيمان").setPriority(NotificationCompat.PRIORITY_HIGH).setAutoCancel(true).setContentIntent(open).build()
+          manager.notify(id,n)
+          val h=intent.getIntExtra("hour",0); val m=intent.getIntExtra("minute",0)
+          val next=Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR,1); set(Calendar.HOUR_OF_DAY,h); set(Calendar.MINUTE,m); set(Calendar.SECOND,0); set(Calendar.MILLISECOND,0) }
+          val again=Intent(context,PrayerAlarmReceiver::class.java).putExtra("prayer",prayer).putExtra("id",id).putExtra("hour",h).putExtra("minute",m)
+          val pi=PendingIntent.getBroadcast(context,id,again,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+          val am=context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+          if(Build.VERSION.SDK_INT>=23) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,next.timeInMillis,pi) else am.setExact(AlarmManager.RTC_WAKEUP,next.timeInMillis,pi)
+          }
           }
           ''')
           main=src/'MainActivity.kt'; s=main.read_text()
@@ -123,20 +123,20 @@ jobs:
           s=s.replace('        setContentView(webView)','        webView.addJavascriptInterface(PrayerBridge(this), "PrayerNative")\n        setContentView(webView)')
           s += r'''
           class PrayerBridge(private val context: Activity) {
- @JavascriptInterface fun schedule(timesJson:String, enabled:Boolean) {
-  val am=context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-  val names=listOf("الفجر","الظهر","العصر","المغرب","العشاء"); val keys=listOf("fajr","dhuhr","asr","maghrib","isha"); val ids=listOf(2101,2102,2103,2104,2105)
-  for(id in ids) { val pi=PendingIntent.getBroadcast(context,id,Intent(context,PrayerAlarmReceiver::class.java),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE); am.cancel(pi); pi.cancel() }
-  if(!enabled) return
-  try { val data=JSONObject(timesJson); for(i in keys.indices) {
-   val raw=data.optString(keys[i],""); if(!raw.matches(Regex("\\d{1,2}:\\d{2}"))) continue
-   val p=raw.split(":"); val h=p[0].toInt(); val m=p[1].toInt()
-   val cal=Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY,h); set(Calendar.MINUTE,m); set(Calendar.SECOND,0); set(Calendar.MILLISECOND,0); if(timeInMillis<=System.currentTimeMillis()) add(Calendar.DAY_OF_YEAR,1) }
-   val intent=Intent(context,PrayerAlarmReceiver::class.java).putExtra("prayer",names[i]).putExtra("id",ids[i]).putExtra("hour",h).putExtra("minute",m)
-   val pi=PendingIntent.getBroadcast(context,ids[i],intent,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-   if(Build.VERSION.SDK_INT>=23) { if(Build.VERSION.SDK_INT>=31 && !am.canScheduleExactAlarms()) am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,cal.timeInMillis,pi) else am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,cal.timeInMillis,pi) } else am.setExact(AlarmManager.RTC_WAKEUP,cal.timeInMillis,pi)
-  } } catch(_:Exception) {}
- }
+          @JavascriptInterface fun schedule(timesJson:String, enabled:Boolean) {
+          val am=context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+          val names=listOf("الفجر","الظهر","العصر","المغرب","العشاء"); val keys=listOf("fajr","dhuhr","asr","maghrib","isha"); val ids=listOf(2101,2102,2103,2104,2105)
+          for(id in ids) { val pi=PendingIntent.getBroadcast(context,id,Intent(context,PrayerAlarmReceiver::class.java),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE); am.cancel(pi); pi.cancel() }
+          if(!enabled) return
+          try { val data=JSONObject(timesJson); for(i in keys.indices) {
+          val raw=data.optString(keys[i],""); if(!raw.matches(Regex("\\d{1,2}:\\d{2}"))) continue
+          val p=raw.split(":"); val h=p[0].toInt(); val m=p[1].toInt()
+          val cal=Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY,h); set(Calendar.MINUTE,m); set(Calendar.SECOND,0); set(Calendar.MILLISECOND,0); if(timeInMillis<=System.currentTimeMillis()) add(Calendar.DAY_OF_YEAR,1) }
+          val intent=Intent(context,PrayerAlarmReceiver::class.java).putExtra("prayer",names[i]).putExtra("id",ids[i]).putExtra("hour",h).putExtra("minute",m)
+          val pi=PendingIntent.getBroadcast(context,ids[i],intent,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+          if(Build.VERSION.SDK_INT>=23) { if(Build.VERSION.SDK_INT>=31 && !am.canScheduleExactAlarms()) am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,cal.timeInMillis,pi) else am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,cal.timeInMillis,pi) } else am.setExact(AlarmManager.RTC_WAKEUP,cal.timeInMillis,pi)
+          } } catch(_:Exception) {}
+          }
           }
           '''
           main.write_text(s)
