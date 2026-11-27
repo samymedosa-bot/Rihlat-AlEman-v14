@@ -58,6 +58,25 @@ jobs:
           echo "=== EFFECTIVE APP GRADLE ==="
           sed -n '1,260p' "$PROJECT_DIR/app/build.gradle"
 
+      - name: Inspect prayer integration points
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== MANIFEST ==="
+          sed -n '1,240p' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+          HTML=$(find "$PROJECT_DIR/app/src/main/assets" -path '*/index.html' -print -quit)
+          echo "=== HTML PATH: $HTML ==="
+          grep -n -E 'fetchPrayerTimes|updateNextPrayer|prayerTimes|notification|adhan|localStorage' "$HTML" | head -100 || true
+          echo "=== HTML PRAYER FUNCTION CONTEXT ==="
+          python3 - "$HTML" <<'PY'
+          from pathlib import Path
+          import re,sys
+          s=Path(sys.argv[1]).read_text(errors='replace')
+          for pat in ['fetchPrayerTimes','updateNextPrayer','prayerTimes']:
+              m=re.search(pat,s)
+              if m: print('\\n---',pat,'---\\n',s[max(0,m.start()-900):m.start()+2200])
+          PY
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
