@@ -77,7 +77,7 @@ jobs:
               if m: print('\\n---',pat,'---\\n',s[max(0,m.start()-900):m.start()+2200])
           PY
 
-      - name: Apply Android v14.1 prayer alarms
+      - name: Apply Android v14.2 prayer alarms
         shell: bash
         run: |
           set -euo pipefail
@@ -86,8 +86,8 @@ jobs:
           import re,sys
           root=Path(sys.argv[1]); app=root/'app'
           gradle=app/'build.gradle'; g=gradle.read_text()
-          g=re.sub(r'versionCode\s+\d+', 'versionCode 141', g)
-          g=re.sub(r'versionName\s+["\'][^"\']+["\']', 'versionName "14.1"', g)
+          g=re.sub(r'versionCode\s+\d+', 'versionCode 142', g)
+          g=re.sub(r'versionName\s+["\'][^"\']+["\']', 'versionName "14.2"', g)
           gradle.write_text(g)
           manifest=app/'src/main/AndroidManifest.xml'; m=manifest.read_text()
           if 'SCHEDULE_EXACT_ALARM' not in m: m=m.replace('<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />','<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />')
@@ -145,9 +145,9 @@ jobs:
           anchor="prayerTimes = {fajr:t.Fajr.split(' ')[0], sunrise:t.Sunrise.split(' ')[0], dhuhr:t.Dhuhr.split(' ')[0], asr:t.Asr.split(' ')[0], maghrib:t.Maghrib.split(' ')[0], isha:t.Isha.split(' ')[0]};"
           if anchor not in h: raise SystemExit('Prayer times anchor not found')
           h=h.replace(anchor,anchor+"\n      try { if(window.PrayerNative) PrayerNative.schedule(JSON.stringify(prayerTimes), !!settings.notifications); } catch(e) {}")
-          h=h.replace("localStorage.setItem('rihlati_settings', JSON.stringify(settings));", "localStorage.setItem('rihlati_settings', JSON.stringify(settings));\\n  try { if(window.PrayerNative && prayerTimes && prayerTimes.fajr) PrayerNative.schedule(JSON.stringify(prayerTimes), !!settings.notifications); } catch(e) {}")
+          h=h.replace("localStorage.setItem('rihlati_settings', JSON.stringify(settings));", "localStorage.setItem('rihlati_settings', JSON.stringify(settings));\n  try { if(window.PrayerNative && prayerTimes && prayerTimes.fajr) PrayerNative.schedule(JSON.stringify(prayerTimes), !!settings.notifications); } catch(e) {}")
           html.write_text(h)
-          print('Applied native prayer alarms and version 14.1')
+          print('Applied native prayer alarms and version 14.2')
           PY
 
       - name: Set up JDK 17
@@ -189,6 +189,6 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Rihlat-AlEman-v14.1-APK
+          name: Rihlat-AlEman-v14.2-APK
           path: apk-output/*.apk
           if-no-files-found: error
