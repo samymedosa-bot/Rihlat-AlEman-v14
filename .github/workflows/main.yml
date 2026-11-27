@@ -1,67 +1,31 @@
 
-name: Build Rihlat AlEman APK
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
 
-on:
-  workflow_dispatch:
-  push:
-    branches: [ main, master ]
+android {
+    namespace 'com.samymedo.rihla'
+    compileSdk 35
 
-permissions:
-  contents: read
+    defaultConfig {
+        applicationId 'com.samymedo.rihla'
+        minSdk 23
+        targetSdk 35
+        versionCode 140
+        versionName '14.0'
+    }
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+}
 
-      - name: Extract Android project
-        run: |
-          test -f rihla_android.zip
-          mkdir -p project
-          unzip -q rihla_android.zip -d project
-
-          PROJECT_DIR="$(find project -type f -name settings.gradle -print -quit | xargs dirname)"
-          test -n "$PROJECT_DIR"
-          test -f "$PROJECT_DIR/app/build.gradle"
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: platform-tools
-
-      - name: Install Android SDK components
-        run: sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
-
-      - name: Set up Gradle 8.9
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
-
-      - name: Show project configuration
-        run: |
-          echo "Project directory: $PROJECT_DIR"
-          find "$PROJECT_DIR" -maxdepth 3 -type f \
-            \( -name "build.gradle" -o -name "build.gradle.kts" -o -name "settings.gradle" -o -name "gradle-wrapper.properties" \) -print
-
-      - name: Build Debug APK with diagnostics
-        run: |
-          cd "$PROJECT_DIR"
-          gradle --no-daemon --stacktrace --info assembleDebug
-
-      - name: Upload APK
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Rihlat-AlEman-v14.0-APK
-          path: project/**/app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
+dependencies {
+    implementation 'androidx.webkit:webkit:1.12.1'
+}
