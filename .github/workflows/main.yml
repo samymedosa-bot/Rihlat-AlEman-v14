@@ -786,6 +786,6 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Rihlat-AlEman-v14.5-APK
+          name: Rihlat-AlEman-v14.6-APK
           path: apk-output/*.apk
           if-no-files-found: error
