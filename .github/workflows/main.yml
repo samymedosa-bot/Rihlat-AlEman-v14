@@ -285,6 +285,92 @@ jobs:
           find "$ASSET_DIR/adhan" -type f -size +10k | grep -q .
           echo "Bundled offline adhan audio assets"
 
+      - name: Add native Android audio file picker and correct reminder permission flow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$PROJECT_DIR" <<'PY'
+          from pathlib import Path
+          import re, sys
+          root=Path(sys.argv[1])
+          gradle=root/'app/build.gradle'
+          g=gradle.read_text()
+          g=re.sub(r'versionCode\\s+\\d+', 'versionCode 144', g)
+          g=re.sub(r'versionName\\s+["\\'][^"\\']+["\\']', 'versionName "14.4"', g)
+          gradle.write_text(g)
+          main=root/'app/src/main/java/com/samymedo/rihla/MainActivity.kt'
+          s=main.read_text()
+          imports='\\n'.join(['import android.net.Uri','import android.webkit.ValueCallback','import android.content.ClipData'])
+          if 'import android.net.Uri' not in s:
+              s=s.replace('import android.webkit.WebViewClient', 'import android.webkit.WebViewClient\\n'+imports)
+          if 'private var uploadFileCallback' not in s:
+              s=s.replace('    private lateinit var webView: WebView', '    private lateinit var webView: WebView\\n    private var uploadFileCallback: ValueCallback<Array<Uri>>? = null')
+          old='''        webView.webChromeClient = object : WebChromeClient() {
+                      override fun onGeolocationPermissionsShowPrompt'''
+          new='''        webView.webChromeClient = object : WebChromeClient() {
+                      override fun onShowFileChooser(view: WebView?, callback: ValueCallback<Array<Uri>>, params: FileChooserParams?): Boolean {
+                          uploadFileCallback?.onReceiveValue(null)
+                          uploadFileCallback = callback
+                          return try {
+                              val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                                  addCategory(Intent.CATEGORY_OPENABLE)
+                                  type = "audio/*"
+                                  putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
+                              }
+                              startActivityForResult(intent, 1001)
+                              true
+                          } catch (e: Exception) {
+                              uploadFileCallback = null
+                              callback.onReceiveValue(null)
+                              false
+                          }
+                      }
+                      override fun onGeolocationPermissionsShowPrompt'''
+          if 'override fun onShowFileChooser' not in s:
+              if old not in s: raise SystemExit('WebChromeClient insertion point not found')
+              s=s.replace(old,new,1)
+          if 'requestCode == 1001' not in s:
+              insert='''    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+                  super.onActivityResult(requestCode, resultCode, data)
+                  if (requestCode == 1001) {
+                      val callback = uploadFileCallback ?: return
+                      uploadFileCallback = null
+                      val result = if (resultCode == Activity.RESULT_OK && data?.data != null) arrayOf(data.data!!) else null
+                      callback.onReceiveValue(result)
+                  }
+              }
+
+          '''
+              s=s.replace('    override fun onRequestPermissionsResult',insert+'    override fun onRequestPermissionsResult',1)
+          main.write_text(s)
+          html=next((root/'app/src/main/assets').rglob('index.html'))
+          h=html.read_text()
+          h=h.replace('''    let granted=true;
+                  if(window.PrayerNative && PrayerNative.requestPermission){ PrayerNative.requestPermission(); granted=true; }
+                  else granted=await ensurePrayerNotificationPermission();''','''    let granted=false;
+                  if(window.PrayerNative && PrayerNative.requestPermission){
+                    granted=await new Promise(resolve=>{
+                      window.__prePrayerPermissionResolve=resolve;
+                      PrayerNative.requestPermission();
+                    });
+                  } else granted=await ensurePrayerNotificationPermission();''')
+          h=h.replace('''            window.onNativeNotificationPermissionResult = function (granted) {
+                      const toggle''','''            window.onNativeNotificationPermissionResult = function (granted) {
+                      if (window.__prePrayerPermissionResolve) {
+                        const resolve=window.__prePrayerPermissionResolve;
+                        window.__prePrayerPermissionResolve=null;
+                        resolve(!!granted);
+                      }
+                      const toggle''')
+          if 'window.__prePrayerPermissionResolve' not in h:
+              raise SystemExit('Could not wire asynchronous pre-prayer permission callback')
+          html.write_text(h)
+          sw=next((root/'app/src/main/assets').rglob('sw.js'),None)
+          if sw:
+              sw.write_text(sw.read_text().replace('rihla-app-v14-3','rihla-app-v14-4'))
+          print('Added Android audio document picker and fixed async notification permission handling.')
+          PY
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -324,6 +410,6 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Rihlat-AlEman-v14.3-APK
+          name: Rihlat-AlEman-v14.4-APK
           path: apk-output/*.apk
           if-no-files-found: error
