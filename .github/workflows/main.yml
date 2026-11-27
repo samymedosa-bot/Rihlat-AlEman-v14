@@ -45,6 +45,15 @@ jobs:
           echo "=== SERVICE WORKER ==="
           find "$PROJECT_DIR/app/src/main/assets/rihla_v137" -maxdepth 2 -iname '*sw*' -o -iname '*manifest*'
 
+      - name: Inspect native activity source
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r SOURCE; do
+            echo "=== SOURCE: $SOURCE ==="
+            sed -n '1,360p' "$SOURCE"
+          done < <(find "$PROJECT_DIR/app/src/main" -type f \\( -name '*.kt' -o -name '*.java' \\) -print)
+
       - name: Inspect prayer notification integration points
         shell: bash
         run: |
