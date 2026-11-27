@@ -621,8 +621,8 @@ jobs:
           from pathlib import Path
           import re,sys
           p=Path(sys.argv[1]); s=p.read_text()
-          s=re.sub(r'versionCode\\s+\\d+', 'versionCode 145', s)
-          s=re.sub(r'versionName\\s+["\\'][^"\\']+["\\']', 'versionName "14.5"', s)
+          s=re.sub(r'versionCode\s+\d+', 'versionCode 145', s)
+          s=re.sub(r"""versionName\s+[\"'][^\"']+[\"']""", 'versionName "14.5"', s)
           p.write_text(s)
           PY
       - name: Set up JDK 17
