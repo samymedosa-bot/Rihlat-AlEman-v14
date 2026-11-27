@@ -859,7 +859,7 @@ jobs:
           '''
           (src/'AdhanPlaybackService.kt').write_text(service)
           manifest=app/'src/main/AndroidManifest.xml'; m=manifest.read_text()
-          for perm in ['android.permission.FOREGROUND_SERVICE','android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK']:
+          for perm in ['android.permission.FOREGROUND_SERVICE','android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK','android.permission.WAKE_LOCK']:
             if perm not in m: m=m.replace('<application',f'<uses-permission android:name="{perm}" />\n    <application',1)
           if 'AdhanPlaybackService' not in m:
             m=m.replace('</application>','    <service android:name=".AdhanPlaybackService" android:enabled="true" android:exported="false" android:foregroundServiceType="mediaPlayback" />\n</application>')
