@@ -39,6 +39,11 @@ jobs:
           sed -n '1,260p' "$PROJECT_DIR/app/src/main/java/com/samymedo/rihla/MainActivity.kt"
           echo "=== HTML NOTIFICATION / PRAYER MATCHES ==="
           grep -nEi 'notification|اذان|أذان|الصلاة|الفجر|المغرب|العشاء|prayer|adhan|alarm|localStorage' "$HTML" | head -220 || true
+          echo "=== NOTIFICATION ENGINE ==="
+          sed -n '1580,1710p' "$HTML"
+          sed -n '1935,2075p' "$HTML"
+          echo "=== HTML INITIALIZATION ==="
+          grep -nE 'initPrayerAlertSettings|fetchPrayerTimes\(|startPrayer|checkPrayerNotification|serviceWorker.register|DOMContentLoaded' "$HTML" | tail -100
           echo "=== HTML SIZE ==="
           wc -l "$HTML"
 
