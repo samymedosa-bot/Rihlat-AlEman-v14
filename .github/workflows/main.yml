@@ -767,6 +767,27 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Repair Kotlin regex string escaping
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$PROJECT_DIR" <<'PY'
+          from pathlib import Path
+          import re, sys
+          root=Path(sys.argv[1])
+          changed=[]
+          for p in root.rglob('*.kt'):
+              s=p.read_text()
+              fixed=re.sub(r'(?<!\\)\\d', r'\\\\d', s)
+              if fixed != s:
+                  p.write_text(fixed)
+                  changed.append(str(p))
+          if not changed:
+              raise SystemExit('No Kotlin regex escapes were found to repair; inspect generated sources.')
+          print('Repaired Kotlin regex escapes in:')
+          print('\\n'.join(changed))
+          PY
+
       - name: Build Debug APK
         shell: bash
         run: |
