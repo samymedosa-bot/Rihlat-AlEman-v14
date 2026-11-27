@@ -609,11 +609,22 @@ jobs:
           new="""function saveSettings(){localStorage.setItem('rihlati_settings',JSON.stringify(settings));try{if(window.PrayerNative&&prayerTimes&&prayerTimes.fajr)PrayerNative.scheduleAfterPrayerDhikr(JSON.stringify(prayerTimes),!!settings.afterPrayerDhikr);}catch(e){console.warn('After-prayer adhkar scheduling failed',e);}}"""
           if old in h: h=h.replace(old,new,1)
           elif 'scheduleAfterPrayerDhikr(JSON.stringify(prayerTimes)' not in h: raise SystemExit('saveSettings function shape changed')
-          h=h.replace('renderPrayersGrid();\\n    updateNextPrayer();','renderPrayersGrid();\\n    try{if(window.PrayerNative)PrayerNative.scheduleAfterPrayerDhikr(JSON.stringify(prayerTimes),!!settings.afterPrayerDhikr);}catch(e){}\\n    updateNextPrayer();')
+          h=h.replace('renderPrayersGrid();\n    updateNextPrayer();','renderPrayersGrid();\n    try{if(window.PrayerNative)PrayerNative.scheduleAfterPrayerDhikr(JSON.stringify(prayerTimes),!!settings.afterPrayerDhikr);}catch(e){}\n    updateNextPrayer();')
           html.write_text(h)
           print('After-prayer adhkar alarms now schedule on settings save and refreshed prayer times.')
           PY
 
+      - name: Set release version 14.5
+        shell: bash
+        run: |
+          python3 - "$PROJECT_DIR/app/build.gradle" <<'PY'
+          from pathlib import Path
+          import re,sys
+          p=Path(sys.argv[1]); s=p.read_text()
+          s=re.sub(r'versionCode\\s+\\d+', 'versionCode 145', s)
+          s=re.sub(r'versionName\\s+["\\'][^"\\']+["\\']', 'versionName "14.5"', s)
+          p.write_text(s)
+          PY
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -653,6 +664,6 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Rihlat-AlEman-v14.4-APK
+          name: Rihlat-AlEman-v14.5-APK
           path: apk-output/*.apk
           if-no-files-found: error
