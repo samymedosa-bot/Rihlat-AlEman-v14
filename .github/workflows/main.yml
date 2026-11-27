@@ -788,6 +788,130 @@ jobs:
           print('\\n'.join(changed))
           PY
 
+      - name: Fix native adhan playback and notification bridge
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$PROJECT_DIR" <<'PY'
+          from pathlib import Path
+          import re, sys
+          root=Path(sys.argv[1]); app=root/'app'
+          src=app/'src/main/java/com/samymedo/rihla'
+          src.mkdir(parents=True,exist_ok=True)
+          html=next((app/'src/main/assets').rglob('index.html'),None)
+          if html is None: raise SystemExit('index.html not found')
+          asset_root=html.parent.name
+          receiver=src/'PrayerAlarmReceiver.kt'
+          r=receiver.read_text()
+          trigger='manager.notify(id,builder.build())'
+          play='''if ((!isPre && !isAfter) || (isPre && preType=="adhan")) {
+              val sound=context.getSharedPreferences("rihla_native_alarms",Context.MODE_PRIVATE).getString("adhanSound","afasy") ?: "afasy"
+              val playIntent=Intent(context,AdhanPlaybackService::class.java).putExtra("soundId",sound)
+              try { if(Build.VERSION.SDK_INT>=26) context.startForegroundService(playIntent) else context.startService(playIntent) }
+              catch(e:Exception) { android.util.Log.e("RihlaAdhan","Unable to start adhan playback",e) }
+            }
+            '''
+          if 'AdhanPlaybackService::class.java' not in r:
+              if trigger not in r: raise SystemExit('Prayer notification dispatch point not found')
+              r=r.replace(trigger,play+trigger,1)
+              receiver.write_text(r)
+          service=f'''package com.samymedo.rihla
+          import android.app.Notification
+          import android.app.NotificationChannel
+          import android.app.NotificationManager
+          import android.app.Service
+          import android.content.Intent
+          import android.content.pm.ServiceInfo
+          import android.media.AudioAttributes
+          import android.media.MediaPlayer
+          import android.os.Build
+          import android.os.IBinder
+          import android.util.Log
+          class AdhanPlaybackService : Service() {{
+            private var player: MediaPlayer? = null
+            override fun onBind(intent: Intent?): IBinder? = null
+            override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {{
+              val manager=getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+              val channelId="adhan_playback_service"
+              if(Build.VERSION.SDK_INT>=26) manager.createNotificationChannel(NotificationChannel(channelId,"تشغيل الأذان",NotificationManager.IMPORTANCE_LOW).apply {{ setSound(null,null); description="إشعار مستمر أثناء تشغيل الأذان" }})
+              val n=if(Build.VERSION.SDK_INT>=26) Notification.Builder(this,channelId) else Notification.Builder(this)
+                .setSmallIcon(applicationInfo.icon).setContentTitle("رحلة الإيمان").setContentText("جاري تشغيل الأذان").setOngoing(true).build()
+              if(Build.VERSION.SDK_INT>=29) startForeground(9101,n,ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK) else startForeground(9101,n)
+              try {{
+                player?.release(); player=null
+                val id=(intent?.getStringExtra("soundId") ?: "afasy").replace(Regex("[^a-zA-Z0-9_]"),"")
+                val candidates=listOf("$asset_root/adhan/$"+"{id}.mp3","$asset_root/adhan/afasy.mp3")
+                var descriptor: android.content.res.AssetFileDescriptor?=null
+                for(path in candidates) {{ try {{ descriptor=assets.openFd(path); break }} catch(_:Exception) {{ }} }}
+                val afd=descriptor ?: throw IllegalStateException("Bundled adhan audio not found")
+                val mp=MediaPlayer()
+                mp.setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
+                mp.setDataSource(afd.fileDescriptor,afd.startOffset,afd.length); afd.close()
+                mp.setOnCompletionListener {{ stopSelf(startId) }}
+                mp.setOnErrorListener {{ _,what,extra -> Log.e("RihlaAdhan","MediaPlayer error $what/$extra"); stopSelf(startId); true }}
+                player=mp; mp.setWakeMode(this,android.os.PowerManager.PARTIAL_WAKE_LOCK); mp.prepareAsync()
+                mp.setOnPreparedListener {{ it.start() }}
+              }} catch(e:Exception) {{ Log.e("RihlaAdhan","Adhan playback failed",e); stopSelf(startId) }}
+              return START_NOT_STICKY
+            }}
+            override fun onDestroy() {{ try {{ player?.stop() }} catch(_:Exception) {{ }}; player?.release(); player=null; stopForeground(STOP_FOREGROUND_REMOVE); super.onDestroy() }}
+          }}
+          '''
+          (src/'AdhanPlaybackService.kt').write_text(service)
+          manifest=app/'src/main/AndroidManifest.xml'; m=manifest.read_text()
+          for perm in ['android.permission.FOREGROUND_SERVICE','android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK']:
+            if perm not in m: m=m.replace('<application',f'<uses-permission android:name="{perm}" />\\n    <application',1)
+          if 'AdhanPlaybackService' not in m:
+            m=m.replace('</application>','    <service android:name=".AdhanPlaybackService" android:enabled="true" android:exported="false" android:foregroundServiceType="mediaPlayback" />\\n</application>')
+          manifest.write_text(m)
+          main=src/'MainActivity.kt'; s=main.read_text()
+          bridge='@JavascriptInterface fun setAdhanSound(soundId:String) { context.getSharedPreferences("rihla_native_alarms",Context.MODE_PRIVATE).edit().putString("adhanSound",soundId).apply() }'
+          if 'fun setAdhanSound(' not in s:
+            anchor='@JavascriptInterface fun schedule('
+            if anchor not in s: raise SystemExit('PrayerBridge schedule method not found')
+            s=s.replace(anchor,bridge+'\\n          '+anchor,1)
+          # Ensure the JavaScript interface is installed before any page URL is loaded.
+          line='webView.addJavascriptInterface(PrayerBridge(this), "PrayerNative")'
+          s=s.replace(line,'')
+          load=re.search(r'webView\\.loadUrl\\(',s)
+          if not load: raise SystemExit('WebView loadUrl call not found')
+          s=s[:load.start()]+'        '+line+'\\n        '+s[load.start():]
+          main.write_text(s)
+          h=html.read_text()
+          # Persist the selected bundled sound in native Android so alarms can play after WebView is closed.
+          h=h.replace("function saveSettings(){localStorage.setItem('rihlati_settings',JSON.stringify(settings));try{if(window.PrayerNative&&prayerTimes&&prayerTimes.fajr)PrayerNative.scheduleAfterPrayerDhikr(JSON.stringify(prayerTimes),!!settings.afterPrayerDhikr);}catch(e){console.warn('After-prayer adhkar scheduling failed',e);}}",
+          "function saveSettings(){localStorage.setItem('rihlati_settings',JSON.stringify(settings));try{if(window.PrayerNative){PrayerNative.setAdhanSound(String(settings.adhanSound||'afasy'));if(prayerTimes&&prayerTimes.fajr)PrayerNative.scheduleAfterPrayerDhikr(JSON.stringify(prayerTimes),!!settings.afterPrayerDhikr);}}catch(e){console.warn('Native settings sync failed',e);}}")
+          js=r'''<script id="native-permission-and-adhan-sync">
+          (function(){
+            let pending=null;
+            const previous=window.onNativeNotificationPermissionResult;
+            window.onNativeNotificationPermissionResult=function(granted){
+              if(pending){const done=pending;pending=null;done(!!granted);}
+              if(typeof previous==='function')previous(!!granted);
+            };
+            window.ensurePrayerNotificationPermission=async function(){
+              if(window.PrayerNative&&typeof PrayerNative.requestPermission==='function'){
+                return await new Promise(resolve=>{pending=resolve;try{PrayerNative.requestPermission();}catch(e){pending=null;resolve(false);}setTimeout(()=>{if(pending){pending=null;resolve(false);}},15000);});
+              }
+              if(location.hostname==='appassets.androidplatform.net'||location.protocol==='file:'){
+                alert('تعذر الاتصال بخدمة إشعارات Android داخل التطبيق. حدّث التطبيق إلى النسخة الأخيرة ثم جرّب مرة أخرى.');
+                return false;
+              }
+              if(!('Notification' in window)||!('serviceWorker' in navigator))return false;
+              try{let p=Notification.permission;if(p==='default')p=await Notification.requestPermission();if(p!=='granted')return false;await navigator.serviceWorker.register('./sw.js');return true;}catch(e){return false;}
+            };
+            function syncSound(){try{if(window.PrayerNative&&PrayerNative.setAdhanSound)PrayerNative.setAdhanSound(String(settings.adhanSound||'afasy'));}catch(e){}}
+            if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',syncSound);else syncSound();
+            window.addEventListener('pageshow',syncSound);
+          })();
+          </script>'''
+          if 'id="native-permission-and-adhan-sync"' not in h:
+            h=h.replace('</body>',js+'\\n</body>')
+          # Keep the header logo legible without changing the page layout.
+          h=h.replace('</style>','/* Android app logo visibility */\\n.logo{font-size:24px!important;}\\n</style>',1)
+          html.write_text(h)
+          print('Added native foreground adhan playback, synchronized selected sound, fixed appassets permission fallback, and enlarged logo text slightly.')
+          PY
       - name: Build Debug APK
         shell: bash
         run: |
