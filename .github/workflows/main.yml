@@ -49,10 +49,79 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          while IFS= read -r SOURCE; do
+          find "$PROJECT_DIR/app/src/main" -type f | grep -E '\.(kt|java)
+
+      - name: Inspect prayer notification integration points
+        shell: bash
+        run: |
+          set -euo pipefail
+          HTML="$PROJECT_DIR/app/src/main/assets/rihla_v137/index.html"
+          echo "=== PRAYER TIMES SOURCE ==="
+          sed -n '1810,1940p' "$HTML"
+          echo "=== NATIVE BRIDGE INSERTION POINTS ==="
+          sed -n '1960,2095p' "$HTML"
+          echo "=== INITIALIZATION ==="
+          sed -n '3330,3410p' "$HTML"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Fix Java and Kotlin JVM targets
+        shell: bash
+        run: |
+          cat >> "$PROJECT_DIR/app/build.gradle" <<'EOF'
+
+          android {
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+
+          tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          }
+          EOF
+
+      - name: Set up Android SDK and accept licenses
+        uses: android-actions/setup-android@v4
+        with:
+          accept-android-sdk-licenses: 'true'
+          log-accepted-android-sdk-licenses: 'false'
+          packages: 'platform-tools'
+
+      - name: Install Android SDK components
+        shell: bash
+        run: sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_DIR"
+          gradle --no-daemon --stacktrace assembleDebug
+
+      - name: Upload APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Rihlat-AlEman-v14.0-APK
+          path: project/**/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+ | while IFS= read -r SOURCE; do
             echo "=== SOURCE: $SOURCE ==="
             sed -n '1,360p' "$SOURCE"
-          done < <(find "$PROJECT_DIR/app/src/main" -type f \\( -name '*.kt' -o -name '*.java' \\) -print)
+          done
 
       - name: Inspect prayer notification integration points
         shell: bash
