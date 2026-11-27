@@ -122,8 +122,41 @@ jobs:
           main=src/'MainActivity.kt'; s=main.read_text()
           s=s.replace('import android.webkit.WebViewClient','import android.webkit.WebViewClient\nimport android.content.Context\nimport android.webkit.JavascriptInterface\nimport android.app.AlarmManager\nimport android.app.PendingIntent\nimport android.content.Intent\nimport org.json.JSONObject\nimport java.util.Calendar')
           s=s.replace('        setContentView(webView)','        webView.addJavascriptInterface(PrayerBridge(this), "PrayerNative")\n        setContentView(webView)')
+          s=s.replace('    override fun onRequestPermissionsResult', '''    fun notifyNotificationPermissionResult(granted: Boolean) {
+        if (::webView.isInitialized) webView.post {
+            webView.evaluateJavascript("window.onNativeNotificationPermissionResult($granted);", null)
+        }
+    }
+
+    override fun onRequestPermissionsResult''')
+          s=s.replace('''        if (requestCode == geoRequest) {
+            val granted = hasLocationPermission()
+            geoCallback?.invoke(geoOrigin, granted, false)
+            geoCallback = null
+            geoOrigin = null
+        }''', '''        if (requestCode == geoRequest) {
+            val granted = hasLocationPermission()
+            geoCallback?.invoke(geoOrigin, granted, false)
+            geoCallback = null
+            geoOrigin = null
+        } else if (requestCode == 502) {
+            notifyNotificationPermissionResult(
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            )
+        }''')
+          s=s.replace('''        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 502)
+        }
+''','')
           s += r'''
           class PrayerBridge(private val context: Activity) {
+          @JavascriptInterface fun requestPermission() {
+          context.runOnUiThread {
+          if(Build.VERSION.SDK_INT>=33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED) {
+          context.requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS),502)
+          } else { (context as? MainActivity)?.notifyNotificationPermissionResult(true) }
+          }
+          }
           @JavascriptInterface fun schedule(timesJson:String, enabled:Boolean) {
           val am=context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
           val names=listOf("الفجر","الظهر","العصر","المغرب","العشاء"); val keys=listOf("fajr","dhuhr","asr","maghrib","isha"); val ids=listOf(2101,2102,2103,2104,2105)
@@ -146,6 +179,43 @@ jobs:
           if anchor not in h: raise SystemExit('Prayer times anchor not found')
           h=h.replace(anchor,anchor+"\n      try { if(window.PrayerNative) PrayerNative.schedule(JSON.stringify(prayerTimes), !!settings.notifications); } catch(e) {}")
           h=h.replace("localStorage.setItem('rihlati_settings', JSON.stringify(settings));", "localStorage.setItem('rihlati_settings', JSON.stringify(settings));\n  try { if(window.PrayerNative && prayerTimes && prayerTimes.fajr) PrayerNative.schedule(JSON.stringify(prayerTimes), !!settings.notifications); } catch(e) {}")
+          compat = r'''<script id="native-notification-compat">
+          (function () {
+            const fallbackToggle = window.toggleNotifications;
+            window.onNativeNotificationPermissionResult = function (granted) {
+              const toggle = document.getElementById('notificationsToggle');
+              settings.notifications = !!granted;
+              if (toggle) toggle.checked = !!granted;
+              localStorage.setItem('rihlati_settings', JSON.stringify(settings));
+              try {
+                if (window.PrayerNative && prayerTimes && prayerTimes.fajr) {
+                  PrayerNative.schedule(JSON.stringify(prayerTimes), !!granted);
+                }
+              } catch (e) { console.warn('Native prayer scheduling failed:', e); }
+              if (!granted) alert('لم يتم منح إذن الإشعارات. يمكنك السماح به من إعدادات التطبيق في Android.');
+            };
+            window.toggleNotifications = function () {
+              const toggle = document.getElementById('notificationsToggle');
+              if (!toggle) return;
+              if (!window.PrayerNative || typeof PrayerNative.requestPermission !== 'function') {
+                if (typeof fallbackToggle === 'function') return fallbackToggle();
+                return;
+              }
+              if (toggle.checked) {
+                PrayerNative.requestPermission();
+              } else {
+                settings.notifications = false;
+                localStorage.setItem('rihlati_settings', JSON.stringify(settings));
+                try {
+                  if (prayerTimes && prayerTimes.fajr) PrayerNative.schedule(JSON.stringify(prayerTimes), false);
+                } catch (e) { console.warn('Native prayer cancellation failed:', e); }
+              }
+            };
+          })();
+          </script>'''
+          if 'id="native-notification-compat"' not in h:
+              if '</body>' not in h: raise SystemExit('HTML body closing tag not found')
+              h=h.replace('</body>', compat+'\\n</body>')
           html.write_text(h)
           sw=next((app/'src/main/assets').rglob('sw.js'),None)
           if sw is None: raise SystemExit('Service worker not found')
