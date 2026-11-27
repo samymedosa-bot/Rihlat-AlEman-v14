@@ -1,3 +1,4 @@
+
 name: Build Rihlat AlEman APK
 
 on:
@@ -17,17 +18,16 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Extract Android project
+        shell: bash
         run: |
+          set -euo pipefail
           test -f "rihla_android (3).zip"
           mkdir -p project
           unzip -q "rihla_android (3).zip" -d project
-
           SETTINGS_FILE=$(find project -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
           test -n "$SETTINGS_FILE"
-
           PROJECT_DIR=$(dirname "$SETTINGS_FILE")
           test -f "$PROJECT_DIR/app/build.gradle"
-
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
       - name: Set up JDK 17
@@ -36,34 +36,16 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Set up Android SDK and accept licenses
+        uses: android-actions/setup-android@v4
+        with:
+          accept-android-sdk-licenses: 'true'
+          log-accepted-android-sdk-licenses: 'false'
+          packages: 'platform-tools'
 
       - name: Install Android SDK components
-        run: |
-          sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
-
-      - name: Fix Java and Kotlin compatibility
-        run: |
-          python3 - <<'PY'
-          import os
-          import re
-
-          path = os.path.join(os.environ["PROJECT_DIR"], "app", "build.gradle")
-
-          with open(path, "r", encoding="utf-8") as f:
-              content = f.read()
-
-          content = content.replace("VERSION_1_8", "VERSION_17")
-          content = re.sub(r"(sourceCompatibility\s+)[\"']?1\.8[\"']?", r"\g<1>JavaVersion.VERSION_17", content)
-          content = re.sub(r"(targetCompatibility\s+)[\"']?1\.8[\"']?", r"\g<1>JavaVersion.VERSION_17", content)
-          content = re.sub(r"(jvmTarget\s*=\s*)[\"']1\.8[\"']", r'\g<1>"17"', content)
-
-          with open(path, "w", encoding="utf-8") as f:
-              f.write(content)
-
-          print("Updated Java/Kotlin targets to 17")
-          PY
+        shell: bash
+        run: sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -71,7 +53,9 @@ jobs:
           gradle-version: '8.9'
 
       - name: Build APK
+        shell: bash
         run: |
+          set -euo pipefail
           cd "$PROJECT_DIR"
           gradle --no-daemon --stacktrace assembleDebug
 
