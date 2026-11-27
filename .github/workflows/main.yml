@@ -95,12 +95,12 @@ jobs:
           manifest.write_text(m)
           src=app/'src/main/java/com/samymedo/rihla'; src.mkdir(parents=True,exist_ok=True)
           (src/'PrayerAlarmReceiver.kt').write_text(r'''package com.samymedo.rihla
-import android.app.*
-import android.content.*
-import android.os.Build
-import androidx.core.app.NotificationCompat
-import java.util.Calendar
-class PrayerAlarmReceiver : BroadcastReceiver() {
+          import android.app.*
+          import android.content.*
+          import android.os.Build
+          import androidx.core.app.NotificationCompat
+          import java.util.Calendar
+          class PrayerAlarmReceiver : BroadcastReceiver() {
  override fun onReceive(context: Context, intent: Intent) {
   val prayer=intent.getStringExtra("prayer") ?: "الصلاة"; val id=intent.getIntExtra("id",100)
   val channel="prayer_times"; val manager=context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -116,13 +116,13 @@ class PrayerAlarmReceiver : BroadcastReceiver() {
   val am=context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
   if(Build.VERSION.SDK_INT>=23) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,next.timeInMillis,pi) else am.setExact(AlarmManager.RTC_WAKEUP,next.timeInMillis,pi)
  }
-}
-''')
+          }
+          ''')
           main=src/'MainActivity.kt'; s=main.read_text()
           s=s.replace('import android.webkit.WebViewClient','import android.webkit.WebViewClient\nimport android.webkit.JavascriptInterface\nimport android.app.AlarmManager\nimport android.app.PendingIntent\nimport android.content.Intent\nimport org.json.JSONObject\nimport java.util.Calendar')
           s=s.replace('        setContentView(webView)','        webView.addJavascriptInterface(PrayerBridge(this), "PrayerNative")\n        setContentView(webView)')
           s += r'''
-class PrayerBridge(private val context: Activity) {
+          class PrayerBridge(private val context: Activity) {
  @JavascriptInterface fun schedule(timesJson:String, enabled:Boolean) {
   val am=context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
   val names=listOf("الفجر","الظهر","العصر","المغرب","العشاء"); val keys=listOf("fajr","dhuhr","asr","maghrib","isha"); val ids=listOf(2101,2102,2103,2104,2105)
@@ -137,8 +137,8 @@ class PrayerBridge(private val context: Activity) {
    if(Build.VERSION.SDK_INT>=23) { if(Build.VERSION.SDK_INT>=31 && !am.canScheduleExactAlarms()) am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,cal.timeInMillis,pi) else am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,cal.timeInMillis,pi) } else am.setExact(AlarmManager.RTC_WAKEUP,cal.timeInMillis,pi)
   } } catch(_:Exception) {}
  }
-}
-'''
+          }
+          '''
           main.write_text(s)
           html=next((app/'src/main/assets').rglob('index.html')); h=html.read_text()
           anchor="prayerTimes = {fajr:t.Fajr.split(' ')[0], sunrise:t.Sunrise.split(' ')[0], dhuhr:t.Dhuhr.split(' ')[0], asr:t.Asr.split(' ')[0], maghrib:t.Maghrib.split(' ')[0], isha:t.Isha.split(' ')[0]};"
