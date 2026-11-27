@@ -909,7 +909,7 @@ jobs:
             h=h.replace('</body>',js+'\n</body>')
           # Keep the header logo legible without changing the page layout.
           h=h.replace('</style>','/* Android app logo visibility */\n.logo{font-size:24px!important;}\n</style>',1)
-          h=h.replace('.home-brand-mark{\n  width:44px;height:44px;display:grid;place-items:center;border-radius:15px;\n  color:#fff;font-size:27px;', '.home-brand-mark{\\n  width:54px;height:54px;display:grid;place-items:center;border-radius:18px;\\n  color:#fff;font-size:32px;');
+          h=h.replace('.home-brand-mark{\n  width:44px;height:44px;display:grid;place-items:center;border-radius:15px;\n  color:#fff;font-size:27px;', '.home-brand-mark{\n  width:54px;height:54px;display:grid;place-items:center;border-radius:18px;\n  color:#fff;font-size:32px;');
           gradle=app/'build.gradle'; g=gradle.read_text(); g=re.sub(r'versionCode\s+\d+', 'versionCode 147', g); g=re.sub(r'versionName\s+["'][^"']+["']', 'versionName "14.7"', g); gradle.write_text(g)
           html.write_text(h)
           print('Added native foreground adhan playback, synchronized selected sound, fixed appassets permission fallback, and enlarged logo text slightly.')
