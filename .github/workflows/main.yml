@@ -1,4 +1,3 @@
-
 name: Build Rihlat AlEman APK
 
 on:
@@ -30,22 +29,33 @@ jobs:
           test -f "$PROJECT_DIR/app/build.gradle"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
+      - name: Inspect Android notification configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== MANIFEST ==="
+          sed -n '1,260p' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+          echo "=== APP GRADLE ==="
+          sed -n '1,260p' "$PROJECT_DIR/app/build.gradle"
+          echo "=== ROOT GRADLE AND SETTINGS ==="
+          sed -n '1,200p' "$PROJECT_DIR/build.gradle"
+          sed -n '1,160p' "$PROJECT_DIR/settings.gradle"
+          echo "=== JAVA/KOTLIN SOURCE TREE ==="
+          find "$PROJECT_DIR/app/src/main" -maxdepth 7 -type f | sort
+          echo "=== SERVICE WORKER ==="
+          find "$PROJECT_DIR/app/src/main/assets/rihla_v137" -maxdepth 2 -iname '*sw*' -o -iname '*manifest*'
+
       - name: Inspect prayer notification integration points
         shell: bash
         run: |
           set -euo pipefail
           HTML="$PROJECT_DIR/app/src/main/assets/rihla_v137/index.html"
-          echo "=== ANDROID SOURCES ==="
-          sed -n '1,260p' "$PROJECT_DIR/app/src/main/java/com/samymedo/rihla/MainActivity.kt"
-          echo "=== HTML NOTIFICATION / PRAYER MATCHES ==="
-          grep -nEi 'notification|اذان|أذان|الصلاة|الفجر|المغرب|العشاء|prayer|adhan|alarm|localStorage' "$HTML" | head -220 || true
-          echo "=== NOTIFICATION ENGINE ==="
-          sed -n '1580,1710p' "$HTML"
-          sed -n '1935,2075p' "$HTML"
-          echo "=== HTML INITIALIZATION ==="
-          grep -nE 'initPrayerAlertSettings|fetchPrayerTimes\(|startPrayer|checkPrayerNotification|serviceWorker.register|DOMContentLoaded' "$HTML" | tail -100
-          echo "=== HTML SIZE ==="
-          wc -l "$HTML"
+          echo "=== PRAYER TIMES SOURCE ==="
+          sed -n '1810,1940p' "$HTML"
+          echo "=== NATIVE BRIDGE INSERTION POINTS ==="
+          sed -n '1960,2095p' "$HTML"
+          echo "=== INITIALIZATION ==="
+          sed -n '3330,3410p' "$HTML"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
