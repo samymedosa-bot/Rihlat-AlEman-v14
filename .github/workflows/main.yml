@@ -666,6 +666,87 @@ jobs:
           manifest.write_text(m)
           print('Installed launcher resources: crescent, mosque, open Quran, emerald and gold.')
           PY
+      - name: Repair native notification permission flow and isolate test package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$PROJECT_DIR" <<'PY'
+          from pathlib import Path
+          import re, sys
+          app=Path(sys.argv[1])/'app'
+          # Ensure the test APK is installable beside the production app, preserving its data.
+          gradle=app/'build.gradle'
+          g=gradle.read_text()
+          g=re.sub(r'versionCode\\s+\\d+', 'versionCode 146', g)
+          g=re.sub(r'versionName\\s+["\\'][^"\\']+["\\']', 'versionName "14.6"', g)
+          if 'applicationIdSuffix ".test"' not in g:
+              start=re.search(r'android\\s*\\{',g)
+              if not start: raise SystemExit('android Gradle block not found')
+              depth=0; end=None
+              for i in range(start.end()-1,len(g)):
+                  if g[i]=='{': depth+=1
+                  elif g[i]=='}':
+                      depth-=1
+                      if depth==0: end=i; break
+              if end is None: raise SystemExit('android Gradle block is unbalanced')
+              g=g[:end]+'\\n    buildTypes { debug { applicationIdSuffix ".test" } }\\n'+g[end:]
+          gradle.write_text(g)
+          # Fix the prior implementation which treated a permission request as granted immediately.
+          html=next((app/'src/main/assets').rglob('index.html'),None)
+          if html is None: raise SystemExit('index.html not found')
+          h=html.read_text()
+          patch=r'''<script id="native-notification-permission-final-fix">
+          (function(){
+            let pendingPermission=null;
+            const previousResult=window.onNativeNotificationPermissionResult;
+            window.onNativeNotificationPermissionResult=function(granted){
+              if(pendingPermission){const done=pendingPermission;pendingPermission=null;done(!!granted);}
+              if(typeof previousResult==='function') previousResult(!!granted);
+            };
+            function requestNativePermission(){
+              return new Promise(resolve=>{
+                if(!window.PrayerNative || typeof PrayerNative.requestPermission!=='function'){
+                  resolve(false); return;
+                }
+                pendingPermission=resolve;
+                try{PrayerNative.requestPermission();}
+                catch(e){pendingPermission=null;resolve(false);}
+              });
+            }
+            window.togglePrePrayerReminder=async function(){
+              const toggle=document.getElementById('prePrayerToggle');
+              if(!toggle)return;
+              if(!toggle.checked){
+                settings.prePrayerReminder=false;
+                try{if(window.PrayerNative&&prayerTimes&&prayerTimes.fajr)PrayerNative.schedulePrePrayer(JSON.stringify(prayerTimes),false,Number(settings.prePrayerMinutes||10),(settings.prePrayerPrayers||[]).join(','),settings.prePrayerType||'adhan');}catch(e){console.warn(e);}
+                if(typeof saveSettings==='function')saveSettings();
+                return;
+              }
+              const granted=await requestNativePermission();
+              if(!granted){toggle.checked=false;settings.prePrayerReminder=false;if(typeof saveSettings==='function')saveSettings();alert('لا يمكن تفعيل التذكير قبل الأذان قبل السماح بإشعارات التطبيق من إعدادات Android.');return;}
+              settings.notifications=true;settings.prePrayerReminder=true;
+              const mainToggle=document.getElementById('notificationsToggle');if(mainToggle)mainToggle.checked=true;
+              if(typeof saveSettings==='function')saveSettings();
+              try{if(window.PrayerNative&&prayerTimes&&prayerTimes.fajr)PrayerNative.schedulePrePrayer(JSON.stringify(prayerTimes),true,Number(settings.prePrayerMinutes||10),(settings.prePrayerPrayers||[]).join(','),settings.prePrayerType||'adhan');}catch(e){console.error('Pre-prayer alarm scheduling failed',e);}
+            };
+            window.addEventListener('load',function(){
+              try{
+                if(window.PrayerNative&&typeof syncNativePrePrayer==='function'&&prayerTimes&&prayerTimes.fajr)syncNativePrePrayer();
+                if(window.PrayerNative&&typeof PrayerNative.scheduleAfterPrayerDhikr==='function'&&prayerTimes&&prayerTimes.fajr)PrayerNative.scheduleAfterPrayerDhikr(JSON.stringify(prayerTimes),!!settings.afterPrayerDhikr);
+              }catch(e){console.warn('Native reminder restore from app state failed',e);}
+            });
+          })();
+          </script>'''
+          if 'id="native-notification-permission-final-fix"' not in h:
+              if '</body>' not in h: raise SystemExit('HTML closing body not found')
+              h=h.replace('</body>',patch+'\\n</body>')
+          # Fail the build rather than silently shipping without the native reminder hooks.
+          for token in ['schedulePrePrayer','scheduleAfterPrayerDhikr','prePrayerToggle','afterPrayerDhikr']:
+              if token not in h: raise SystemExit('Required reminder integration missing: '+token)
+          html.write_text(h)
+          print('Validated native reminder hooks; repaired asynchronous permission flow; set isolated 14.6 test package.')
+          PY
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
