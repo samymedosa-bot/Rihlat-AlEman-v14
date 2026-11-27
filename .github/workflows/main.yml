@@ -840,7 +840,7 @@ jobs:
               try {{
                 player?.release(); player=null
                 val id=(intent?.getStringExtra("soundId") ?: "afasy").replace(Regex("[^a-zA-Z0-9_]"),"")
-                val candidates=listOf("${asset_root}/adhan/" + id + ".mp3", "ASSET_ROOT/adhan/afasy.mp3")
+                val candidates=listOf("{asset_root}/adhan/" + id + ".mp3", "{asset_root}/adhan/afasy.mp3")
                 var descriptor: android.content.res.AssetFileDescriptor?=null
                 for(path in candidates) {{ try {{ descriptor=assets.openFd(path); break }} catch(_:Exception) {{ }} }}
                 val afd=descriptor ?: throw IllegalStateException("Bundled adhan audio not found")
@@ -854,7 +854,7 @@ jobs:
               }} catch(e:Exception) {{ Log.e("RihlaAdhan","Adhan playback failed",e); stopSelf(startId) }}
               return START_NOT_STICKY
             }}
-            override fun onDestroy() {{ try {{ player?.stop() }} catch(_:Exception) {{ }}; player?.release(); player=null; if(Build.VERSION.SDK_INT>=24) stopForeground(STOP_FOREGROUND_REMOVE) else @Suppress("DEPRECATION") stopForeground(true); super.onDestroy() }}
+            override fun onDestroy() {{ try {{ player?.stop() }} catch(_:Exception) {{ }}; player?.release(); player=null; if(Build.VERSION.SDK_INT>=24) stopForeground(STOP_FOREGROUND_REMOVE) else stopForeground(true); super.onDestroy() }}
           }}
           '''
           (src/'AdhanPlaybackService.kt').write_text(service)
