@@ -74,7 +74,7 @@ jobs:
           s=Path(sys.argv[1]).read_text(errors='replace')
           for pat in ['fetchPrayerTimes','updateNextPrayer','prayerTimes']:
               m=re.search(pat,s)
-              if m: print('\\n---',pat,'---\\n',s[max(0,m.start()-900):m.start()+2200])
+              if m: print('\n---',pat,'---\n',s[max(0,m.start()-900):m.start()+2200])
           PY
 
       - name: Apply Android v14.2 prayer alarms
@@ -457,11 +457,11 @@ jobs:
           manifest=app/'src/main/AndroidManifest.xml'
           m=manifest.read_text()
           if 'android.permission.RECEIVE_BOOT_COMPLETED' not in m:
-              m=m.replace('<uses-permission android:name="android.permission.INTERNET" />','<uses-permission android:name="android.permission.INTERNET" />\\n    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />')
+              m=m.replace('<uses-permission android:name="android.permission.INTERNET" />','<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />')
           if 'android.permission.SCHEDULE_EXACT_ALARM' not in m:
-              m=m.replace('<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />','<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />')
+              m=m.replace('<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />','<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />')
           if '.BootRestoreReceiver' not in m:
-              m=m.replace('        <activity','        <receiver android:name=".BootRestoreReceiver" android:enabled="true" android:exported="false"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /><action android:name="android.intent.action.MY_PACKAGE_REPLACED" /></intent-filter></receiver>\\n        <activity',1)
+              m=m.replace('        <activity','        <receiver android:name=".BootRestoreReceiver" android:enabled="true" android:exported="false"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /><action android:name="android.intent.action.MY_PACKAGE_REPLACED" /></intent-filter></receiver>\n        <activity',1)
           manifest.write_text(m)
           src=app/'src/main/java/com/samymedo/rihla'; src.mkdir(parents=True,exist_ok=True)
           boot=r'''package com.samymedo.rihla
@@ -500,10 +500,10 @@ jobs:
           main=src/'MainActivity.kt'; s=main.read_text()
           a='@JavascriptInterface fun schedule(timesJson:String, enabled:Boolean) {'
           if a not in s: raise SystemExit('Native prayer schedule method not found')
-          s=s.replace(a,a+'\\n          context.getSharedPreferences("rihla_native_alarms", Context.MODE_PRIVATE).edit().putString("prayerTimes",timesJson).putBoolean("prayerEnabled",enabled).apply()',1)
+          s=s.replace(a,a+'\n          context.getSharedPreferences("rihla_native_alarms", Context.MODE_PRIVATE).edit().putString("prayerTimes",timesJson).putBoolean("prayerEnabled",enabled).apply()',1)
           b='@JavascriptInterface fun schedulePrePrayer(timesJson:String, enabled:Boolean, leadMinutes:Int, prayersCsv:String, preType:String) {'
           if b not in s: raise SystemExit('Native pre-prayer schedule method not found')
-          s=s.replace(b,b+'\\n          context.getSharedPreferences("rihla_native_alarms", Context.MODE_PRIVATE).edit().putString("preTimes",timesJson).putBoolean("preEnabled",enabled).putInt("preLead",leadMinutes).putString("prePrayers",prayersCsv).putString("preType",preType).apply()',1)
+          s=s.replace(b,b+'\n          context.getSharedPreferences("rihla_native_alarms", Context.MODE_PRIVATE).edit().putString("preTimes",timesJson).putBoolean("preEnabled",enabled).putInt("preLead",leadMinutes).putString("prePrayers",prayersCsv).putString("preType",preType).apply()',1)
           main.write_text(s)
           html=next((app/'src/main/assets').rglob('index.html'))
           h=html.read_text(errors='replace')
