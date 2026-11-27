@@ -30,17 +30,17 @@ jobs:
           test -f "$PROJECT_DIR/app/build.gradle"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-      - name: Inspect Android source files
+      - name: Inspect prayer notification integration points
         shell: bash
         run: |
           set -euo pipefail
-          echo "=== PROJECT FILES ==="
-          find "$PROJECT_DIR" -type f -print | grep -E '\.(kt|java|html)$|AndroidManifest.xml|build.gradle' | sort || true
-          echo "=== MAIN ACTIVITY / MANIFEST / APP GRADLE ==="
-          while IFS= read -r file; do
-            echo "===== $file ====="
-            sed -n '1,260p' "$file"
-          done < <(find "$PROJECT_DIR" -type f -print | grep -E 'MainActivity\.kt$|AndroidManifest\.xml$|app/build\.gradle(\.kts)?$' || true)
+          HTML="$PROJECT_DIR/app/src/main/assets/rihla_v137/index.html"
+          echo "=== ANDROID SOURCES ==="
+          sed -n '1,260p' "$PROJECT_DIR/app/src/main/java/com/samymedo/rihla/MainActivity.kt"
+          echo "=== HTML NOTIFICATION / PRAYER MATCHES ==="
+          grep -nEi 'notification|اذان|أذان|الصلاة|الفجر|المغرب|العشاء|prayer|adhan|alarm|localStorage' "$HTML" | head -220 || true
+          echo "=== HTML SIZE ==="
+          wc -l "$HTML"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
