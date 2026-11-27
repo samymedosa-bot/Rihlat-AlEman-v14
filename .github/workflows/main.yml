@@ -139,7 +139,7 @@ jobs:
           for(id in ids) { val pi=PendingIntent.getBroadcast(context,id,Intent(context,PrayerAlarmReceiver::class.java),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE); am.cancel(pi); pi.cancel() }
           if(!enabled) return
           try { val data=JSONObject(timesJson); for(i in keys.indices) {
-          val raw=data.optString(keys[i],""); if(!raw.matches(Regex("\\d{1,2}:\\d{2}"))) continue
+          val raw=data.optString(keys[i],""); if(!raw.matches(Regex("\d{1,2}:\d{2}"))) continue
           val p=raw.split(":"); val h=p[0].toInt(); val m=p[1].toInt()
           val cal=Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY,h); set(Calendar.MINUTE,m); set(Calendar.SECOND,0); set(Calendar.MILLISECOND,0); if(timeInMillis<=System.currentTimeMillis()) add(Calendar.DAY_OF_YEAR,1) }
           val intent=Intent(context,PrayerAlarmReceiver::class.java).putExtra("prayer",names[i]).putExtra("id",ids[i]).putExtra("hour",h).putExtra("minute",m)
@@ -227,7 +227,7 @@ jobs:
             val data=JSONObject(timesJson); val selected=prayersCsv.split(",").toSet()
             for(i in keys.indices) {
               if(!selected.contains(keys[i])) continue
-              val raw=data.optString(keys[i],""); if(!raw.matches(Regex("\\d{1,2}:\\d{2}"))) continue
+              val raw=data.optString(keys[i],""); if(!raw.matches(Regex("\d{1,2}:\d{2}"))) continue
               val p=raw.split(":"); val h=p[0].toInt(); val minute=p[1].toInt()
               val cal=Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY,h); set(Calendar.MINUTE,minute); set(Calendar.SECOND,0); set(Calendar.MILLISECOND,0); add(Calendar.MINUTE,-leadMinutes); if(timeInMillis<=System.currentTimeMillis()) add(Calendar.DAY_OF_YEAR,1) }
               val intent=Intent(context,PrayerAlarmReceiver::class.java).putExtra("prayer",names[i]).putExtra("id",ids[i]).putExtra("hour",cal.get(Calendar.HOUR_OF_DAY)).putExtra("minute",cal.get(Calendar.MINUTE)).putExtra("isPre",true).putExtra("preType",preType)
@@ -485,7 +485,7 @@ jobs:
                 val data=JSONObject(json); val am=c.getSystemService(Context.ALARM_SERVICE) as AlarmManager
                 for(i in keys.indices) {
                   if(pre && !selectedCsv.split(",").contains(keys[i])) continue
-                  val raw=data.optString(keys[i],""); if(!raw.matches(Regex("\\d{1,2}:\\d{2}"))) continue
+                  val raw=data.optString(keys[i],""); if(!raw.matches(Regex("\d{1,2}:\d{2}"))) continue
                   val parts=raw.split(":"); val cal=Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY,parts[0].toInt()); set(Calendar.MINUTE,parts[1].toInt()); set(Calendar.SECOND,0); set(Calendar.MILLISECOND,0); if(pre) add(Calendar.MINUTE,-lead); if(timeInMillis<=System.currentTimeMillis()) add(Calendar.DAY_OF_YEAR,1) }
                   val id=base+i
                   val it=Intent(c,PrayerAlarmReceiver::class.java).putExtra("prayer",names[i]).putExtra("id",id).putExtra("hour",cal.get(Calendar.HOUR_OF_DAY)).putExtra("minute",cal.get(Calendar.MINUTE)).putExtra("isPre",pre).putExtra("preType",type)
@@ -556,7 +556,7 @@ jobs:
                 val data=JSONObject(json); val am=c.getSystemService(Context.ALARM_SERVICE) as AlarmManager
                 val keys=listOf("fajr","dhuhr","asr","maghrib","isha"); val names=listOf("الفجر","الظهر","العصر","المغرب","العشاء")
                 for(i in keys.indices) {
-                  val raw=data.optString(keys[i],""); if(!raw.matches(Regex("\\d{1,2}:\\d{2}"))) continue
+                  val raw=data.optString(keys[i],""); if(!raw.matches(Regex("\d{1,2}:\d{2}"))) continue
                   val p=raw.split(":"); val cal=Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY,p[0].toInt()); set(Calendar.MINUTE,p[1].toInt()); set(Calendar.SECOND,0); set(Calendar.MILLISECOND,0); add(Calendar.MINUTE,15); if(timeInMillis<=System.currentTimeMillis()) add(Calendar.DAY_OF_YEAR,1) }
                   val id=2301+i; val it=Intent(c,PrayerAlarmReceiver::class.java).putExtra("prayer",names[i]).putExtra("id",id).putExtra("hour",cal.get(Calendar.HOUR_OF_DAY)).putExtra("minute",cal.get(Calendar.MINUTE)).putExtra("isAfterDhikr",true)
                   val pi=PendingIntent.getBroadcast(c,id,it,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
@@ -593,7 +593,7 @@ jobs:
             try {
               val data=JSONObject(timesJson); val keys=listOf("fajr","dhuhr","asr","maghrib","isha"); val names=listOf("الفجر","الظهر","العصر","المغرب","العشاء")
               for(i in keys.indices) {
-                val raw=data.optString(keys[i],""); if(!raw.matches(Regex("\\d{1,2}:\\d{2}"))) continue
+                val raw=data.optString(keys[i],""); if(!raw.matches(Regex("\d{1,2}:\d{2}"))) continue
                 val p=raw.split(":"); val cal=Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY,p[0].toInt()); set(Calendar.MINUTE,p[1].toInt()); set(Calendar.SECOND,0); set(Calendar.MILLISECOND,0); add(Calendar.MINUTE,15); if(timeInMillis<=System.currentTimeMillis()) add(Calendar.DAY_OF_YEAR,1) }
                 val id=ids[i]; val it=Intent(context,PrayerAlarmReceiver::class.java).putExtra("prayer",names[i]).putExtra("id",id).putExtra("hour",cal.get(Calendar.HOUR_OF_DAY)).putExtra("minute",cal.get(Calendar.MINUTE)).putExtra("isAfterDhikr",true)
                 val pi=PendingIntent.getBroadcast(context,id,it,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
@@ -677,10 +677,10 @@ jobs:
           # Ensure the test APK is installable beside the production app, preserving its data.
           gradle=app/'build.gradle'
           g=gradle.read_text()
-          g=re.sub(r'versionCode\\s+\\d+', 'versionCode 146', g)
-          g=re.sub(r'versionName\\s+["\\'][^"\\']+["\\']', 'versionName "14.6"', g)
+          g=re.sub(r'versionCode\s+\d+', 'versionCode 146', g)
+          g=re.sub(r'versionName\s+["\'][^"\']+["\']', 'versionName "14.6"', g)
           if 'applicationIdSuffix ".test"' not in g:
-              start=re.search(r'android\\s*\\{',g)
+              start=re.search(r'android\s*\{',g)
               if not start: raise SystemExit('android Gradle block not found')
               depth=0; end=None
               for i in range(start.end()-1,len(g)):
@@ -689,7 +689,7 @@ jobs:
                       depth-=1
                       if depth==0: end=i; break
               if end is None: raise SystemExit('android Gradle block is unbalanced')
-              g=g[:end]+'\\n    buildTypes { debug { applicationIdSuffix ".test" } }\\n'+g[end:]
+              g=g[:end]+'\n    buildTypes { debug { applicationIdSuffix ".test" } }\n'+g[end:]
           gradle.write_text(g)
           # Fix the prior implementation which treated a permission request as granted immediately.
           html=next((app/'src/main/assets').rglob('index.html'),None)
@@ -739,7 +739,7 @@ jobs:
           </script>'''
           if 'id="native-notification-permission-final-fix"' not in h:
               if '</body>' not in h: raise SystemExit('HTML closing body not found')
-              h=h.replace('</body>',patch+'\\n</body>')
+              h=h.replace('</body>',patch+'\n</body>')
           # Fail the build rather than silently shipping without the native reminder hooks.
           for token in ['schedulePrePrayer','scheduleAfterPrayerDhikr','prePrayerToggle','afterPrayerDhikr']:
               if token not in h: raise SystemExit('Required reminder integration missing: '+token)
