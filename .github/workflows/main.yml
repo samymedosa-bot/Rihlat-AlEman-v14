@@ -548,7 +548,7 @@ jobs:
           boot=src/'BootRestoreReceiver.kt'; b=boot.read_text()
           if 'afterDhikr' not in b:
               b=b.replace('if(p.getBoolean("prayerEnabled",false)) restore(context,times,listOf("الفجر","الظهر","العصر","المغرب","العشاء"),listOf("fajr","dhuhr","asr","maghrib","isha"),2101,false,0,"adhan","")',
-              'if(p.getBoolean("prayerEnabled",false)) restore(context,times,listOf("الفجر","الظهر","العصر","المغرب","العشاء"),listOf("fajr","dhuhr","asr","maghrib","isha"),2101,false,0,"adhan","")\\n              if(p.getBoolean("afterDhikr",false)) restoreAfterDhikr(context,times)')
+              'if(p.getBoolean("prayerEnabled",false)) restore(context,times,listOf("الفجر","الظهر","العصر","المغرب","العشاء"),listOf("fajr","dhuhr","asr","maghrib","isha"),2101,false,0,"adhan","")\n              if(p.getBoolean("afterDhikr",false)) restoreAfterDhikr(context,times)')
               pos=b.rfind('}')
               method=r"""
             private fun restoreAfterDhikr(c:Context,json:String) {
