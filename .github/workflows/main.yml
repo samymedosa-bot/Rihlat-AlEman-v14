@@ -570,6 +570,50 @@ jobs:
           print('Connected the existing afterPrayerDhikr setting to native Android alarms and reboot restoration.')
           PY
 
+      - name: Activate native after-prayer adhkar alarms when settings change
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$PROJECT_DIR" <<'PY'
+          from pathlib import Path
+          import sys
+          app=Path(sys.argv[1])/'app'; src=app/'src/main/java/com/samymedo/rihla'
+          main=src/'MainActivity.kt'; s=main.read_text()
+          if 'fun scheduleAfterPrayerDhikr(' not in s:
+            anchor='@JavascriptInterface fun schedulePrePrayer('
+            i=s.find(anchor)
+            if i<0: raise SystemExit('Prayer bridge insertion point missing')
+            method=r"""
+          @JavascriptInterface fun scheduleAfterPrayerDhikr(timesJson:String, enabled:Boolean) {
+            context.getSharedPreferences("rihla_native_alarms", Context.MODE_PRIVATE).edit().putString("prayerTimes",timesJson).putBoolean("afterDhikr",enabled).apply()
+            val am=context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            val ids=listOf(2301,2302,2303,2304,2305)
+            for(id in ids) { val pi=PendingIntent.getBroadcast(context,id,Intent(context,PrayerAlarmReceiver::class.java),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE); am.cancel(pi); pi.cancel() }
+            if(!enabled) return
+            try {
+              val data=JSONObject(timesJson); val keys=listOf("fajr","dhuhr","asr","maghrib","isha"); val names=listOf("الفجر","الظهر","العصر","المغرب","العشاء")
+              for(i in keys.indices) {
+                val raw=data.optString(keys[i],""); if(!raw.matches(Regex("\\d{1,2}:\\d{2}"))) continue
+                val p=raw.split(":"); val cal=Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY,p[0].toInt()); set(Calendar.MINUTE,p[1].toInt()); set(Calendar.SECOND,0); set(Calendar.MILLISECOND,0); add(Calendar.MINUTE,15); if(timeInMillis<=System.currentTimeMillis()) add(Calendar.DAY_OF_YEAR,1) }
+                val id=ids[i]; val it=Intent(context,PrayerAlarmReceiver::class.java).putExtra("prayer",names[i]).putExtra("id",id).putExtra("hour",cal.get(Calendar.HOUR_OF_DAY)).putExtra("minute",cal.get(Calendar.MINUTE)).putExtra("isAfterDhikr",true)
+                val pi=PendingIntent.getBroadcast(context,id,it,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+                if(Build.VERSION.SDK_INT>=23) { if(Build.VERSION.SDK_INT>=31 && !am.canScheduleExactAlarms()) am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,cal.timeInMillis,pi) else am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,cal.timeInMillis,pi) } else am.setExact(AlarmManager.RTC_WAKEUP,cal.timeInMillis,pi)
+              }
+            } catch(_:Exception) {}
+          }
+            """
+            s=s[:i]+method+s[i:]
+            main.write_text(s)
+          html=next((app/'src/main/assets').rglob('index.html')); h=html.read_text()
+          old="function saveSettings(){localStorage.setItem('rihlati_settings',JSON.stringify(settings));}"
+          new="""function saveSettings(){localStorage.setItem('rihlati_settings',JSON.stringify(settings));try{if(window.PrayerNative&&prayerTimes&&prayerTimes.fajr)PrayerNative.scheduleAfterPrayerDhikr(JSON.stringify(prayerTimes),!!settings.afterPrayerDhikr);}catch(e){console.warn('After-prayer adhkar scheduling failed',e);}}"""
+          if old in h: h=h.replace(old,new,1)
+          elif 'scheduleAfterPrayerDhikr(JSON.stringify(prayerTimes)' not in h: raise SystemExit('saveSettings function shape changed')
+          h=h.replace('renderPrayersGrid();\\n    updateNextPrayer();','renderPrayersGrid();\\n    try{if(window.PrayerNative)PrayerNative.scheduleAfterPrayerDhikr(JSON.stringify(prayerTimes),!!settings.afterPrayerDhikr);}catch(e){}\\n    updateNextPrayer();')
+          html.write_text(h)
+          print('After-prayer adhkar alarms now schedule on settings save and refreshed prayer times.')
+          PY
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
