@@ -124,10 +124,7 @@ jobs:
           s=s.replace('        setContentView(webView)','        webView.addJavascriptInterface(PrayerBridge(this), "PrayerNative")\n        setContentView(webView)')
           s=s.replace('    override fun onRequestPermissionsResult', '    fun notifyNotificationPermissionResult(granted: Boolean) {\n        if (::webView.isInitialized) webView.post {\n            webView.evaluateJavascript("window.onNativeNotificationPermissionResult($granted);", null)\n        }\n    }\n\n    override fun onRequestPermissionsResult')
           s=s.replace('        if (requestCode == geoRequest) {\n            val granted = hasLocationPermission()\n            geoCallback?.invoke(geoOrigin, granted, false)\n            geoCallback = null\n            geoOrigin = null\n        }', '        if (requestCode == geoRequest) {\n            val granted = hasLocationPermission()\n            geoCallback?.invoke(geoOrigin, granted, false)\n            geoCallback = null\n            geoOrigin = null\n        } else if (requestCode == 502) {\n            notifyNotificationPermissionResult(checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)\n        }')
-          s=s.replace('''        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 502)
-        }
-''','')
+          s=s.replace('        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {\\n            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 502)\\n        }\\n','')
           s += r'''
           class PrayerBridge(private val context: Activity) {
           @JavascriptInterface fun requestPermission() {
