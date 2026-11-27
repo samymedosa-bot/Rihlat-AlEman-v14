@@ -840,7 +840,7 @@ jobs:
               try {{
                 player?.release(); player=null
                 val id=(intent?.getStringExtra("soundId") ?: "afasy").replace(Regex("[^a-zA-Z0-9_]"),"")
-                val candidates=listOf("$asset_root/adhan/$"+"{id}.mp3","$asset_root/adhan/afasy.mp3")
+                val candidates=listOf("${asset_root}/adhan/" + id + ".mp3", "ASSET_ROOT/adhan/afasy.mp3")
                 var descriptor: android.content.res.AssetFileDescriptor?=null
                 for(path in candidates) {{ try {{ descriptor=assets.openFd(path); break }} catch(_:Exception) {{ }} }}
                 val afd=descriptor ?: throw IllegalStateException("Bundled adhan audio not found")
@@ -854,28 +854,28 @@ jobs:
               }} catch(e:Exception) {{ Log.e("RihlaAdhan","Adhan playback failed",e); stopSelf(startId) }}
               return START_NOT_STICKY
             }}
-            override fun onDestroy() {{ try {{ player?.stop() }} catch(_:Exception) {{ }}; player?.release(); player=null; stopForeground(STOP_FOREGROUND_REMOVE); super.onDestroy() }}
+            override fun onDestroy() {{ try {{ player?.stop() }} catch(_:Exception) {{ }}; player?.release(); player=null; if(Build.VERSION.SDK_INT>=24) stopForeground(STOP_FOREGROUND_REMOVE) else @Suppress("DEPRECATION") stopForeground(true); super.onDestroy() }}
           }}
           '''
           (src/'AdhanPlaybackService.kt').write_text(service)
           manifest=app/'src/main/AndroidManifest.xml'; m=manifest.read_text()
           for perm in ['android.permission.FOREGROUND_SERVICE','android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK']:
-            if perm not in m: m=m.replace('<application',f'<uses-permission android:name="{perm}" />\\n    <application',1)
+            if perm not in m: m=m.replace('<application',f'<uses-permission android:name="{perm}" />\n    <application',1)
           if 'AdhanPlaybackService' not in m:
-            m=m.replace('</application>','    <service android:name=".AdhanPlaybackService" android:enabled="true" android:exported="false" android:foregroundServiceType="mediaPlayback" />\\n</application>')
+            m=m.replace('</application>','    <service android:name=".AdhanPlaybackService" android:enabled="true" android:exported="false" android:foregroundServiceType="mediaPlayback" />\n</application>')
           manifest.write_text(m)
           main=src/'MainActivity.kt'; s=main.read_text()
           bridge='@JavascriptInterface fun setAdhanSound(soundId:String) { context.getSharedPreferences("rihla_native_alarms",Context.MODE_PRIVATE).edit().putString("adhanSound",soundId).apply() }'
           if 'fun setAdhanSound(' not in s:
             anchor='@JavascriptInterface fun schedule('
             if anchor not in s: raise SystemExit('PrayerBridge schedule method not found')
-            s=s.replace(anchor,bridge+'\\n          '+anchor,1)
+            s=s.replace(anchor,bridge+'\n          '+anchor,1)
           # Ensure the JavaScript interface is installed before any page URL is loaded.
           line='webView.addJavascriptInterface(PrayerBridge(this), "PrayerNative")'
           s=s.replace(line,'')
-          load=re.search(r'webView\\.loadUrl\\(',s)
+          load=re.search(r'webView\.loadUrl\(',s)
           if not load: raise SystemExit('WebView loadUrl call not found')
-          s=s[:load.start()]+'        '+line+'\\n        '+s[load.start():]
+          s=s[:load.start()]+'        '+line+'\n        '+s[load.start():]
           main.write_text(s)
           h=html.read_text()
           # Persist the selected bundled sound in native Android so alarms can play after WebView is closed.
@@ -906,9 +906,9 @@ jobs:
           })();
           </script>'''
           if 'id="native-permission-and-adhan-sync"' not in h:
-            h=h.replace('</body>',js+'\\n</body>')
+            h=h.replace('</body>',js+'\n</body>')
           # Keep the header logo legible without changing the page layout.
-          h=h.replace('</style>','/* Android app logo visibility */\\n.logo{font-size:24px!important;}\\n</style>',1)
+          h=h.replace('</style>','/* Android app logo visibility */\n.logo{font-size:24px!important;}\n</style>',1)
           html.write_text(h)
           print('Added native foreground adhan playback, synchronized selected sound, fixed appassets permission fallback, and enlarged logo text slightly.')
           PY
